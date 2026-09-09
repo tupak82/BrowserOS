@@ -14,10 +14,10 @@ from ..server_binaries import ServerBundle, SignSpec
 
 BROWSERCLAW_PRODUCT = ProductDescriptor.define(
     id="browserclaw",
-    display_name="BrowserOS neo",
+    display_name="Yarumo Browser",
     windows_installer_guid="{FA2AFFF8-647B-477C-A5D2-905BA8DB9B82}",
-    summary="The open source browser for web agents",
-    description="BrowserOS neo is a Chromium-based browser for agent workflows.",
+    summary="The browser connected to Yarumo",
+    description="Yarumo Browser is a Chromium-based browser for agent workflows.",
     required_extensions=(
         (BROWSERCLAW_EXTENSION_ID, "BrowserOS neo app"),
         (BROWSEROS_BUG_REPORTER_EXTENSION_ID, "BrowserOS bug reporter"),
