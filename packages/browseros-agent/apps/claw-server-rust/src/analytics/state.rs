@@ -38,7 +38,9 @@ pub(crate) async fn load_or_create_state(path: &Path) -> AnalyticsState {
             }
         },
         Err(error) if error.kind() == io::ErrorKind::NotFound => {
-            let fresh = AnalyticsState { enabled: true };
+            // Yarumo Browser is opt-in for telemetry. A fresh profile starts
+            // disabled even when an upstream PostHog key is present in the build.
+            let fresh = AnalyticsState { enabled: false };
             if let Err(error) = persist_state(path, &fresh).await {
                 tracing::warn!(%error, "analytics state write failed");
             }
@@ -60,7 +62,9 @@ fn parse_state(raw: &str) -> Option<AnalyticsState> {
     let object = value.as_object()?;
     let enabled = match object.get("enabled") {
         Some(Value::Bool(enabled)) => *enabled,
-        None => true,
+        // Legacy state without an explicit consent bit must not opt a Yarumo
+        // profile into telemetry implicitly.
+        None => false,
         Some(_) => return None,
     };
     Some(AnalyticsState { enabled })
@@ -92,17 +96,17 @@ mod tests {
     use tempfile::tempdir;
 
     #[tokio::test]
-    async fn missing_state_persists_consent_only() -> anyhow::Result<()> {
+    async fn missing_state_persists_opt_in_default() -> anyhow::Result<()> {
         let directory = tempdir()?;
         let path = state_path(directory.path());
         let state = load_or_create_state(&path).await;
-        assert!(state.enabled);
+        assert!(!state.enabled);
 
         let raw = fs::read_to_string(path).await?;
         assert!(raw.ends_with('\n'));
         let value: Value = serde_json::from_str(&raw)?;
         assert_eq!(value.as_object().map(serde_json::Map::len), Some(1));
-        assert_eq!(value["enabled"], true);
+        assert_eq!(value["enabled"], false);
         Ok(())
     }
 
@@ -141,10 +145,10 @@ mod tests {
     }
 
     #[test]
-    fn parser_preserves_the_historical_opt_out_default() {
+    fn parser_preserves_explicit_consent_and_defaults_missing_consent_off() {
         assert_eq!(
             parse_state(r#"{"distinctId":"stable"}"#),
-            Some(AnalyticsState { enabled: true })
+            Some(AnalyticsState { enabled: false })
         );
         assert_eq!(
             parse_state(r#"{"distinctId":"stable","enabled":false}"#).map(|state| state.enabled),
