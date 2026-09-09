@@ -16,6 +16,7 @@ export function SidebarBranding({ expanded = false }: SidebarBrandingProps) {
   return (
     <div className="flex h-14 shrink-0 items-center gap-3 px-3">
       <div
+        role="img"
         aria-label="Yarumo Browser"
         className="flex size-8 shrink-0 items-center justify-center rounded-md bg-[#7ED957] font-black text-[#0F2D1F] text-lg shadow-card"
       >
