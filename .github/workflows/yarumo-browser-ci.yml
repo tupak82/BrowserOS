@@ -1,0 +1,75 @@
+name: Yarumo Browser CI
+
+on:
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.4.2
+
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Verify Yarumo branding invariants
+        shell: python
+        run: |
+          from pathlib import Path
+
+          product = Path('packages/browseros/bos_build/products/browserclaw/product.py').read_text()
+          updater = Path('packages/browseros/chromium_files/products/browserclaw/chrome/updater/branding.gni').read_text()
+          sidebar = Path('packages/browseros-agent/apps/claw-app/components/sidebar/SidebarBranding.tsx').read_text()
+          hero = Path('packages/browseros-agent/apps/claw-app/components/cockpit/CockpitHero.tsx').read_text()
+          newtab = Path('packages/browseros-agent/apps/claw-app/entrypoints/newtab/index.html').read_text()
+          cockpit = Path('packages/browseros-agent/apps/claw-app/screens/cockpit/Cockpit.tsx').read_text()
+          telemetry = Path('packages/browseros-agent/apps/claw-server-rust/src/analytics/state.rs').read_text()
+
+          assert 'display_name="Yarumo Browser"' in product
+          assert 'browser_name = "Yarumo Browser"' in updater
+          assert 'browser_product_name = "Yarumo Browser"' in updater
+          assert 'Yarumo Browser Updater' in updater
+          assert 'Yarumo Browser Installer' in updater
+          assert 'Yarumo Browser' in sidebar
+          assert 'browserclaw.svg' not in sidebar
+          assert '#7ED957' in sidebar and '#0F2D1F' in sidebar
+          assert 'What is Yarumo' in hero
+          assert '<title>Yarumo Browser</title>' in newtab
+          assert 'ProductHuntBanner' not in cockpit
+          assert 'let fresh = AnalyticsState { enabled: false };' in telemetry
+          assert 'None => false' in telemetry
+
+      - name: Python syntax check
+        run: python3 -m py_compile packages/browseros/bos_build/products/browserclaw/product.py
+
+      - name: Install BrowserOS agent dependencies
+        working-directory: packages/browseros-agent
+        run: bun install --frozen-lockfile
+
+      - name: Check changed cockpit files
+        working-directory: packages/browseros-agent
+        run: >-
+          bunx @biomejs/biome check
+          apps/claw-app/components/cockpit/CockpitHero.tsx
+          apps/claw-app/components/sidebar/SidebarBranding.tsx
+          apps/claw-app/screens/cockpit/Cockpit.tsx
+
+      - name: Typecheck claw app
+        working-directory: packages/browseros-agent
+        run: bun run --filter @browseros/claw-app typecheck
+
+      - name: Test telemetry opt-in state
+        working-directory: packages/browseros-agent
+        run: cargo test -p claw-server-rust analytics::state
